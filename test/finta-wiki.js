@@ -60,6 +60,10 @@ class FintaWiki {
     this.immagini = { "Timberhearth 1.png": "s1", "TH.png": "s2", "Village.png": "s3", "Gabbro.jpg": "s4" };
     this.rev = 100;
     this.richieste = [];
+    // Cloudflare: dopo quante immagini scaricate comincia a chiedere la verifica da browser
+    // (null = mai)
+    this.bloccoDopo = null;
+    this.immaginiDate = 0;
     this.scarica = this.scarica.bind(this);
   }
 
@@ -77,6 +81,10 @@ class FintaWiki {
     const u = new URL(url);
     if (u.host === "static.wikia.nocookie.net") {
       if (url.includes("Rotta")) throw Object.assign(new Error("static.wikia.nocookie.net ha risposto 404"), { stato: 404 });
+      if (this.bloccoDopo != null && this.immaginiDate >= this.bloccoDopo) {
+        throw Object.assign(new Error("static.wikia.nocookie.net ha risposto 403 (verifica da browser di Cloudflare)"), { stato: 403, sfida: true });
+      }
+      this.immaginiDate++;
       return { dati: url.includes(".png") ? PNG : WEBP, tipo: "image/webp" };
     }
     const q = Object.fromEntries(u.searchParams);

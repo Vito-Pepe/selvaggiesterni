@@ -1,14 +1,14 @@
 // Viste dell'app: inizio, categorie, indice A-Z, ricerca, novità e informazioni.
 (function () {
   "use strict";
-  const { h, stato, chiama, carica, voce, categoria, vista, vai, avviso, data, numero, link, scriviLocale } = window.SE;
+  const { h, stato, chiama, carica, voce, categoria, vista, vai, avviso, data, numero, link, sorgente, scriviLocale } = window.SE;
 
   // Scheda di una pagina negli elenchi: immagine, titolo, riassunto
   function carta(p, { riassunto = true } = {}) {
     return h(
       "a",
       { class: "carta", href: link.pagina(p.id) },
-      p.immagine ? h("img", { src: link.immagine(p.immagine.f), alt: "", loading: "lazy", width: p.immagine.w || null, height: p.immagine.h || null }) : h("span", { class: "senza-immagine", "aria-hidden": "true" }, p.titolo.slice(0, 1)),
+      sorgente(p.immagine) ? h("img", { src: sorgente(p.immagine), alt: "", loading: "lazy", width: p.immagine.w || null, height: p.immagine.h || null }) : h("span", { class: "senza-immagine", "aria-hidden": "true" }, p.titolo.slice(0, 1)),
       h("span", { class: "testo-carta" }, h("b", null, p.titolo), riassunto && p.riassunto ? h("span", { class: "riassunto" }, p.riassunto) : null),
     );
   }
@@ -52,12 +52,12 @@
   vista("", (main) => {
     if (!stato.indice.pagine.length) return inAttesa(main);
     const sezioni = (stato.indice.home || []).map((sez) => {
-      const conImmagini = sez.voci.filter((v) => v.f).length >= 2;
+      const conImmagini = sez.voci.filter((v) => sorgente(v)).length >= 2;
       const voci = sez.voci.map((v) => {
         const href = v.p ? link.pagina(v.p) : v.c ? link.categoria(v.c) : null;
         const nome = v.t || (v.p ? voce(v.p)?.titolo : categoria(v.c)?.it) || "";
         const nomeIt = v.c ? categoria(v.c)?.it || nome : nome;
-        if (conImmagini) return h("a", { class: "icona-home", href }, v.f ? h("img", { src: link.immagine(v.f), alt: "", loading: "lazy" }) : h("span", { class: "senza-immagine" }, nome.slice(0, 1)), h("span", null, nomeIt));
+        if (conImmagini) return h("a", { class: "icona-home", href }, sorgente(v) ? h("img", { src: sorgente(v), alt: "", loading: "lazy" }) : h("span", { class: "senza-immagine" }, nome.slice(0, 1)), h("span", null, nomeIt));
         return h("a", { class: "chip", href }, nomeIt);
       });
       return h("section", { class: "sezione-home" }, h("h2", null, sez.it), h("div", { class: conImmagini ? "griglia-icone" : "chips" }, voci));
@@ -166,7 +166,7 @@
             return h(
               "a",
               { class: "risultato", href: link.pagina(x.id) },
-              p?.immagine ? h("img", { src: link.immagine(p.immagine.f), alt: "", loading: "lazy" }) : h("span", { class: "senza-immagine" }, x.titolo.slice(0, 1)),
+              sorgente(p?.immagine) ? h("img", { src: sorgente(p.immagine), alt: "", loading: "lazy" }) : h("span", { class: "senza-immagine" }, x.titolo.slice(0, 1)),
               h("span", null, h("b", null, x.titolo), h("span", { class: "estratto" }, x.estratto)),
             );
           }),
@@ -248,12 +248,22 @@
       try {
         const s = await chiama("GET", "aggiornamento");
         pulsante.disabled = s.inCorso;
+        // Senza i null: replaceChildren li scriverebbe come testo
         zonaStato.replaceChildren(
+          ...[
           h(
             "dl",
             { class: "dati" },
             h("dt", null, "Copia in uso"),
-            h("dd", null, s.generato ? `${data(s.generato, true)}: ${numero(s.pagine)} pagine, ${numero(s.immagini)} immagini` : "non ancora pronta"),
+            h("dd", null, s.generato ? `${data(s.generato, true)}: ${numero(s.pagine)} pagine` : "non ancora pronta"),
+            h("dt", null, "Immagini"),
+            h(
+              "dd",
+              null,
+              `${numero(s.immagini)} sul Pi`,
+              s.immaginiDaFandom ? `, ${numero(s.immaginiDaFandom)} caricate da Fandom` : "",
+              s.immaginiDaFandom && s.bloccoImmagini ? h("div", { class: "tenue piccolo" }, "Fandom (Cloudflare) per ora non dà le immagini al Pi: quelle che mancano le carica il tuo browser direttamente da Fandom.", s.prossimoTentativoImmagini ? ` Il Pi riprova ${data(s.prossimoTentativoImmagini, true)}.` : "") : null,
+            ),
             h("dt", null, "Ultimo tentativo"),
             h("dd", null, s.ultimoTentativo ? `${data(s.ultimoTentativo, true)} (${s.motivo || ""}): ${s.inCorso ? "in corso" : s.esito === "ok" ? "riuscito" : s.esito === "errore" ? `non riuscito, ${s.errore}` : "–"}` : "mai"),
             s.inCorso ? [h("dt", null, "Adesso"), h("dd", null, s.fase || "in corso…")] : null,
@@ -265,6 +275,7 @@
           s.trattenute?.length
             ? h("details", { open: true }, h("summary", null, `Pagine tenute com'erano (${s.trattenute.length})`), h("p", { class: "tenue piccolo" }, "Sulla wiki sono state svuotate o accorciate di molto (succede con i vandalismi): per 7 giorni qui resta la versione di prima, poi vale quella della wiki."), h("ul", { class: "piccolo" }, s.trattenute.map((x) => h("li", null, x.titolo, h("span", { class: "tenue" }, ` — ${x.motivo}, dal ${data(x.dal)}`)))))
             : null,
+          ].filter(Boolean),
         );
         if (s.inCorso) timer = setTimeout(leggiStato, 4000);
         else if (s.pagine && !stato.indice.pagine.length) carica().catch(() => {});

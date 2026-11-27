@@ -49,6 +49,37 @@ test("aggiornatore: prima copia, novità, wiki che non risponde", async () => {
   assert.equal(giu.stato().pagine, 4);
 });
 
+test("aggiornatore: immagini bloccate da Fandom, nuovi tentativi", async () => {
+  const dati = fs.mkdtempSync(path.join(os.tmpdir(), "se-blocco-"));
+  const w = new FintaWiki();
+  w.bloccoDopo = 0;
+  const a = new Aggiornatore({ cartellaDati: dati, scarica: w.scarica, minimoPagine: 3, log: muto });
+  const s1 = await a.aggiorna("prova");
+  assert.equal(s1.esito, "ok");
+  assert.deepEqual([s1.immagini, s1.immaginiDaFandom], [0, 4]);
+  assert.match(s1.bloccoImmagini, /Cloudflare/);
+  assert.ok(Date.parse(s1.prossimoTentativoImmagini) > Date.now() + 50 * 60 * 1000, "riprova tra un'ora");
+  const p = JSON.parse(a.pagina("timber-hearth").testo);
+  assert.match(p.schede[0].immagini[0].u, /^https:\/\/static\.wikia\.nocookie\.net\//);
+  assert.equal(a.novita()[0].immagini, 0);
+
+  // Ancora bloccato: una richiesta sola al sito delle immagini, poi si aspetta il doppio
+  const prima = w.richieste.length;
+  const s2 = await a.aggiornaImmagini("prova");
+  assert.equal(w.richieste.slice(prima).length, 1);
+  assert.equal(s2.immaginiDaFandom, 4);
+  assert.ok(Date.parse(s2.prossimoTentativoImmagini) > Date.now() + 110 * 60 * 1000, "poi tra due ore");
+
+  // Sbloccato: arrivano tutte, senza riscaricare le pagine
+  w.bloccoDopo = null;
+  const pagine = w.richieste.filter((u) => u.includes("action=parse")).length;
+  const s3 = await a.aggiornaImmagini("prova");
+  assert.deepEqual([s3.immagini, s3.immaginiDaFandom, s3.prossimoTentativoImmagini], [4, 0, null]);
+  assert.equal(w.richieste.filter((u) => u.includes("action=parse")).length, pagine);
+  assert.match(JSON.parse(a.pagina("timber-hearth").testo).schede[0].immagini[0].f, /^th-s2\.png$/);
+  a.ferma();
+});
+
 test("server: API, intestazioni, immagini", async (t) => {
   const dati = fs.mkdtempSync(path.join(os.tmpdir(), "se-server-"));
   const w = new FintaWiki();
@@ -65,6 +96,7 @@ test("server: API, intestazioni, immagini", async (t) => {
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
   assert.match(r.headers.get("content-security-policy"), /default-src 'self'/);
+  assert.match(r.headers.get("content-security-policy"), /img-src 'self' data: https:\/\/static\.wikia\.nocookie\.net;/);
   assert.equal(r.headers.get("x-content-type-options"), "nosniff");
   assert.equal(r.headers.get("referrer-policy"), "no-referrer");
 

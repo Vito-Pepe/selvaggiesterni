@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Aggiornatore } = require("./wiki/aggiornatore");
 const { cerca } = require("./wiki/cerca");
-const { RE_FILE } = require("./wiki/immagini");
+const { RE_FILE, ORIGINE_FANDOM } = require("./wiki/immagini");
 
 const PORTA = Number(process.env.PORT) || 3000;
 const CARTELLA_DATI = process.env.DATA_DIR || "/data";
@@ -29,8 +29,10 @@ const TIPI = {
   ".txt": "text/plain; charset=utf-8",
 };
 
+// Le immagini che il Pi non è riuscito a scaricare il browser le prende da Fandom
+// (static.wikia.nocookie.net): è l'unica origine esterna permessa, e solo per le immagini
 const INTESTAZIONI = {
-  "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  "Content-Security-Policy": `default-src 'self'; img-src 'self' data: ${ORIGINE_FANDOM}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
 };

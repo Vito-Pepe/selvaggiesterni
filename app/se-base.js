@@ -202,5 +202,12 @@
     immagine: (f) => `/immagini/${encodeURIComponent(f)}`,
   };
 
-  window.SE = { h, s, chiama, stato, carica, usaIndice, pagina, voce, categoria, avviso, finestra, vista, vai, mostra, leggiLocale, scriviLocale, data, numero, link };
+  // Da dove caricare un'immagine: dal Pi ({ f }) o, se il Pi non l'ha ancora, da Fandom ({ u })
+  function sorgente(x) {
+    if (x?.f) return link.immagine(x.f);
+    if (x?.u && /^https:\/\/static\.wikia\.nocookie\.net\//.test(x.u)) return x.u;
+    return null;
+  }
+
+  window.SE = { h, s, chiama, stato, carica, usaIndice, pagina, voce, categoria, avviso, finestra, vista, vai, mostra, leggiLocale, scriviLocale, data, numero, link, sorgente };
 })();
