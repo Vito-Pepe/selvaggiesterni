@@ -1,0 +1,10 @@
+{
+  "name": "selvaggiesterni",
+  "private": true,
+  "description": "Selvaggi Esterni: copia privata della wiki di Outer Wilds sul Raspberry Pi, aggiornata ogni giorno",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test test/*.test.js",
+    "scarica": "node strumenti/scarica-wiki.js"
+  }
+}
