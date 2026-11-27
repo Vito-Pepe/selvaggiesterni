@@ -3,18 +3,26 @@
 // completa e, se va bene, la mette al posto di quella in uso. Le Novità (pagine nuove, tolte,
 // modificate) restano in novita.json. Se qualcosa va storto si tiene la copia di prima: l'app
 // funziona anche quando la wiki non risponde.
+//
+// Immagini: se Fandom (Cloudflare) blocca il Pi, quelle che mancano le carica il browser da Fandom
+// e il Pi riprova da solo: dopo un'ora, poi a intervalli che raddoppiano fino a 12 ore. Ogni
+// tentativo comincia con una richiesta sola: se è ancora bloccato si ferma lì.
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { scaricaTutto } = require("./sorgenti");
 const { costruisci, controlla, immaginiUsate, VERSIONE } = require("./copia");
-const { prepara, applica, togliNonUsate, leggiRegistro } = require("./immagini");
+const { prepara, applica, togliNonUsate, leggiRegistro, conta } = require("./immagini");
+const { scarica: scaricaRete } = require("./rete");
 const { confronta } = require("./differenze");
 const { indicizza } = require("./cerca");
 
 const ORE = 3600 * 1000;
 const OGNI = 24 * ORE;
+// Nuovi tentativi per le immagini bloccate: 1 ora, poi il doppio ogni volta, al massimo 12 ore
+const PRIMA_ATTESA_IMMAGINI = ORE;
+const MASSIMA_ATTESA_IMMAGINI = 12 * ORE;
 const MAX_NOVITA = 60;
 
 function scriviAtomico(file, testo) {
@@ -60,6 +68,9 @@ class Aggiornatore {
     this.minimoPagine = minimoPagine;
     this.inCorso = null;
     this.timer = null;
+    this.timerImmagini = null;
+    this.prossimoImmagini = null;
+    this.attesaImmagini = PRIMA_ATTESA_IMMAGINI;
     fs.mkdirSync(this.cartellaImmagini, { recursive: true });
     this.carica();
   }
@@ -131,7 +142,9 @@ class Aggiornatore {
       fase: this.fase || null,
       generato: this.copia?.generato || null,
       pagine: this.copia ? Object.keys(this.copia.pagine).length : 0,
-      immagini: Object.keys(leggiRegistro(this.cartellaImmagini)).length,
+      immagini: conta(leggiRegistro(this.cartellaImmagini)).sulPi,
+      immaginiDaFandom: conta(leggiRegistro(this.cartellaImmagini)).daFandom,
+      prossimoTentativoImmagini: this.prossimoImmagini,
       scartate: this.copia?.scartate || [],
       trattenute: this.copia?.trattenute || [],
       avvisiCopia: this.copia?.avvisi || [],
@@ -173,12 +186,13 @@ class Aggiornatore {
       const primaVolta = !precedente;
       if (primaVolta) this.usa(nuova, leggiRegistro(this.cartellaImmagini));
       const parziale = primaVolta ? (r) => this.usa(nuova, r) : null;
-      const { registro, avvisi, scaricate } = await prepara(nomi, { cartella: this.cartellaImmagini, avanzamento, parziale, ...opz });
+      const { registro, avvisi, scaricate, bloccato, sulPi, daFandom } = await prepara(nomi, { cartella: this.cartellaImmagini, avanzamento, parziale, ...opz });
       nuova.avvisi = [...nuova.avvisi, ...avvisi];
+      for (const a of avvisi) this.log(`wiki: ${a}`);
 
       const diff = confronta(precedente, nuova);
       scriviAtomico(this.file, JSON.stringify(nuova));
-      if (primaVolta) this.aggiungiNovita({ data: inizio, prima: true, pagine: Object.keys(nuova.pagine).length, immagini: Object.keys(registro).length });
+      if (primaVolta) this.aggiungiNovita({ data: inizio, prima: true, pagine: Object.keys(nuova.pagine).length, immagini: sulPi });
       else if (!diff.vuoto) {
         const { vuoto, ...voce } = diff;
         this.aggiungiNovita({ data: inizio, ...voce });
@@ -186,8 +200,9 @@ class Aggiornatore {
       this.usa(nuova, registro);
       // Solo dopo che la copia nuova è in uso: le immagini che non usa più
       const tolte = togliNonUsate(this.cartellaImmagini, registro);
-      Object.assign(stato, { ultimoSuccesso: new Date().toISOString(), esito: "ok", errore: null, avvisi: nuova.avvisi, cambiamenti: diff.totale, immaginiScaricate: scaricate, immaginiTolte: tolte });
-      this.log(`wiki: fatto, ${Object.keys(nuova.pagine).length} pagine, ${diff.totale} cambiamenti, ${scaricate} immagini scaricate, ${tolte} tolte`);
+      Object.assign(stato, { ultimoSuccesso: new Date().toISOString(), esito: "ok", errore: null, avvisi: nuova.avvisi, cambiamenti: diff.totale, immaginiScaricate: scaricate, immaginiTolte: tolte, bloccoImmagini: bloccato });
+      this.log(`wiki: fatto, ${Object.keys(nuova.pagine).length} pagine, ${diff.totale} cambiamenti, ${scaricate} immagini scaricate, ${tolte} tolte${daFandom ? `, ${daFandom} ancora da Fandom` : ""}`);
+      this.dopoImmagini(daFandom, bloccato);
     } catch (e) {
       Object.assign(stato, { esito: "errore", errore: e.message });
       this.log(`wiki: aggiornamento non riuscito: ${e.message}`);
@@ -196,9 +211,90 @@ class Aggiornatore {
     return { ...this.stato(), inCorso: false };
   }
 
+  // Dopo un giro sulle immagini: se ne mancano, nuovo tentativo più tardi
+  dopoImmagini(daFandom, bloccato) {
+    if (!daFandom) {
+      this.attesaImmagini = PRIMA_ATTESA_IMMAGINI;
+      this.pianificaImmagini(null);
+      return;
+    }
+    this.pianificaImmagini(this.attesaImmagini);
+    if (bloccato) this.attesaImmagini = Math.min(this.attesaImmagini * 2, MASSIMA_ATTESA_IMMAGINI);
+  }
+
+  pianificaImmagini(attesa) {
+    clearTimeout(this.timerImmagini);
+    this.timerImmagini = null;
+    this.prossimoImmagini = null;
+    if (attesa == null) return;
+    this.prossimoImmagini = new Date(Date.now() + attesa).toISOString();
+    this.timerImmagini = setTimeout(() => this.aggiornaImmagini(), attesa);
+    this.timerImmagini.unref?.();
+  }
+
+  // Solo le immagini che mancano sul Pi, senza riscaricare le pagine
+  aggiornaImmagini(motivo = "nuovo tentativo") {
+    if (!this.inCorso) {
+      this.inCorso = this.eseguiImmagini(motivo).finally(() => {
+        this.inCorso = null;
+        this.fase = null;
+      });
+    }
+    return this.inCorso;
+  }
+
+  async eseguiImmagini(motivo) {
+    if (!this.grezza) return this.stato();
+    const scarica = this.scarica || scaricaRete;
+    const nomi = immaginiUsate(this.grezza);
+    const prima = leggiRegistro(this.cartellaImmagini);
+    const mancanti = nomi.filter((n) => !prima[n]?.file);
+    if (!mancanti.length) {
+      this.dopoImmagini(0, null);
+      return this.stato();
+    }
+    const stato = leggiJson(this.fileStato, {});
+    try {
+      // Una richiesta sola, prima di tutto: se Fandom blocca ancora, ci si ferma qui
+      const prova = mancanti.map((n) => prima[n]?.url).find(Boolean);
+      if (prova) {
+        try {
+          await scarica(prova, { tipo: "byte", tentativi: 1, massimo: 10 * 1024 * 1024 });
+        } catch (e) {
+          if (e.sfida || e.stato === 403 || e.stato === 429) {
+            this.log(`wiki: immagini ancora bloccate da Fandom (${e.message}), ${mancanti.length} restano da Fandom`);
+            Object.assign(stato, { bloccoImmagini: e.message, ultimoTentativoImmagini: new Date().toISOString() });
+            scriviAtomico(this.fileStato, JSON.stringify(stato));
+            this.dopoImmagini(mancanti.length, e.message);
+            return this.stato();
+          }
+        }
+      }
+      this.fase = `immagini: ${mancanti.length} da scaricare (${motivo})`;
+      this.log(`wiki: ${this.fase}`);
+      const r = await prepara(nomi, { cartella: this.cartellaImmagini, scarica, avanzamento: (m) => this.log(`wiki: ${m}`) });
+      for (const a of r.avvisi) this.log(`wiki: ${a}`);
+      this.usa(this.grezza, r.registro);
+      togliNonUsate(this.cartellaImmagini, r.registro);
+      Object.assign(stato, { bloccoImmagini: r.bloccato, ultimoTentativoImmagini: new Date().toISOString() });
+      this.log(`wiki: immagini, ${r.scaricate} scaricate${r.daFandom ? `, ${r.daFandom} ancora da Fandom` : ", tutte sul Pi"}`);
+      this.dopoImmagini(r.daFandom, r.bloccato);
+    } catch (e) {
+      this.log(`wiki: immagini non aggiornate: ${e.message}`);
+      this.dopoImmagini(mancanti.length, e.message);
+    }
+    scriviAtomico(this.fileStato, JSON.stringify(stato));
+    return this.stato();
+  }
+
   // Senza copia si parte subito; poi ogni 24 ore dall'ultimo tentativo (almeno 2 minuti dopo
-  // l'avvio, per non scaricare tutto a ogni riavvio del container)
+  // l'avvio, per non scaricare tutto a ogni riavvio del container). Se mancano immagini, il
+  // primo tentativo per loro dopo qualche minuto.
   pianifica() {
+    if (this.grezza) {
+      const registro = leggiRegistro(this.cartellaImmagini);
+      if (immaginiUsate(this.grezza).some((n) => !registro[n]?.file)) this.pianificaImmagini(3 * 60 * 1000);
+    }
     const s = leggiJson(this.fileStato, {});
     const ultimo = Date.parse(s.ultimoTentativo || 0) || 0;
     const attesa = this.copia ? Math.max(2 * 60 * 1000, ultimo + OGNI - Date.now()) : 5000;
@@ -213,6 +309,7 @@ class Aggiornatore {
   ferma() {
     clearTimeout(this.timer);
     clearInterval(this.timer);
+    clearTimeout(this.timerImmagini);
   }
 }
 

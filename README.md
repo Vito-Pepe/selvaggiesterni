@@ -38,6 +38,7 @@ Una volta al giorno (e con il pulsante in Informazioni, al massimo ogni 10 minut
 1. legge dalla wiki l'elenco delle pagine, i rimandi e le categorie;
 2. scarica ogni pagina già impaginata dalla wiki e la trasforma in blocchi semplici (testo, link, immagini, tabelle): niente HTML della wiki arriva al browser;
 3. scarica le immagini nuove o cambiate (ridotte a 800 px, in WebP; quelle che non cambiano non si riscaricano);
+   Una ogni 2 secondi, perché dal Pi le immagini passano da Cloudflare. Se Cloudflare blocca il Pi e chiede una verifica da browser ("Just a moment…"), l'app non insiste e non prova ad aggirarla. Le immagini che mancano le carica il browser di chi guarda direttamente da Fandom, quindi si vedono lo stesso. Il Pi riprova da solo: dopo un'ora, poi ogni 2, 4, 8, fino a 12 ore, e ogni tentativo comincia con una richiesta sola. In Informazioni si vede quante immagini sono sul Pi e quante vengono da Fandom.
 4. controlla che la copia sia completa e la mette in uso; se la wiki non risponde, o risponde a metà, resta quella di prima.
 
 Non si copiano le pagine vuote, quelle che la wiki sta per cancellare e quelle vandalizzate (senza categorie e quasi vuote, più un elenco a mano). Se una pagina viene svuotata all'improvviso sulla wiki, per una settimana resta la versione di prima.
@@ -62,7 +63,7 @@ Al primo avvio la copia non c'è: il server la scarica subito. I testi sono pron
 | Aggiornamento del codice | `update.sh` dal cron ogni 5 minuti |
 | Controllo di salute | `GET /api/salute` ogni 60 s (il guardiano la riavvia se si blocca) |
 
-Esce su Internet solo per leggere la wiki (`outerwilds.fandom.com`) e le sue immagini (`static.wikia.nocookie.net`), una richiesta alla volta; non riceve niente da Internet.
+Esce su Internet solo per leggere la wiki (`outerwilds.fandom.com`) e le sue immagini (`static.wikia.nocookie.net`), una richiesta alla volta; non riceve niente da Internet. Le immagini che il Pi non ha, il browser le carica da `static.wikia.nocookie.net`: è l'unico sito esterno che la pagina può usare, e solo per le immagini (Content-Security-Policy).
 
 ### Prima installazione
 

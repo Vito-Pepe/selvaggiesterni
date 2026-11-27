@@ -1,7 +1,7 @@
 // Pagina della wiki: scheda, indice della pagina e blocchi (formato in server/wiki/blocchi.js).
 (function () {
   "use strict";
-  const { h, stato, pagina, voce, categoria, vista, finestra, data, link } = window.SE;
+  const { h, stato, pagina, voce, categoria, vista, finestra, data, link, sorgente } = window.SE;
 
   // --- Pezzi di testo ---
 
@@ -26,15 +26,15 @@
 
   function immagineInTesto(x, ctx) {
     const lato = x.w && x.h ? Math.min(1, 72 / Math.max(x.w, x.h)) : 1;
-    const img = h("img", { src: link.immagine(x.f), alt: x.alt || "", loading: "lazy", class: "icona-testo", width: x.w ? Math.round(x.w * lato) : null, height: x.h ? Math.round(x.h * lato) : null });
+    const img = h("img", { src: sorgente(x), alt: x.alt || "", loading: "lazy", class: "icona-testo", width: x.w ? Math.round(x.w * lato) : null, height: x.h ? Math.round(x.h * lato) : null });
     return collegamento(x, img, ctx);
   }
 
   function pezzi(s, ctx) {
-    return (s || []).map((x) => {
+    return (s || []).flatMap((x) => {
       if (typeof x === "string") return document.createTextNode(x);
       if (x.br) return h("br");
-      if (x.f) return immagineInTesto(x, ctx);
+      if (x.f || x.u) return sorgente(x) ? [immagineInTesto(x, ctx)] : [];
       let el = document.createTextNode(x.t || "");
       for (const [k, tag] of STILI) if (x[k]) el = h(tag, null, el);
       return collegamento(x, el, ctx);
@@ -45,11 +45,11 @@
 
   // --- Immagini ---
 
-  function ingrandisci(f, d, ctx) {
+  function ingrandisci(x, d, ctx) {
     finestra({
       titolo: d ? testo(d) || "Immagine" : "Immagine",
       classe: "finestra-immagine",
-      contenuto: h("figure", { class: "grande" }, h("img", { src: link.immagine(f), alt: d ? testo(d) : "" }), d ? h("figcaption", null, pezzi(d, ctx)) : null),
+      contenuto: h("figure", { class: "grande" }, h("img", { src: sorgente(x), alt: d ? testo(d) : "" }), d ? h("figcaption", null, pezzi(d, ctx)) : null),
     });
   }
 
@@ -57,7 +57,7 @@
     return h(
       "figure",
       { class: classe },
-      h("button", { type: "button", class: "apri-immagine", "aria-label": "Ingrandisci l'immagine", onclick: () => ingrandisci(x.f, x.d, ctx) }, h("img", { src: link.immagine(x.f), alt: x.d ? testo(x.d) : "", loading: "lazy", width: x.w || null, height: x.h || null })),
+      h("button", { type: "button", class: "apri-immagine", "aria-label": "Ingrandisci l'immagine", onclick: () => ingrandisci(x, x.d, ctx) }, h("img", { src: sorgente(x), alt: x.d ? testo(x.d) : "", loading: "lazy", width: x.w || null, height: x.h || null })),
       x.d ? h("figcaption", null, pezzi(x.d, ctx)) : null,
     );
   }

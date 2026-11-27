@@ -8,6 +8,9 @@ const { scaricaTutto } = require("../server/wiki/sorgenti");
 const { costruisci, immaginiUsate } = require("../server/wiki/copia");
 const { FintaWiki, PNG, WEBP } = require("./finta-wiki");
 
+const CDN = "https://static.wikia.nocookie.net/outerwilds_gamepedia/images/a/ab";
+const ridotta = (chiave) => `${CDN}/${chiave}/revision/latest/scale-to-width-down/800`;
+
 const cartellaProva = () => fs.mkdtempSync(path.join(os.tmpdir(), "se-immagini-"));
 
 test("tipo dal contenuto", () => {
@@ -27,7 +30,10 @@ test("scarica solo quelle nuove o cambiate, poi toglie quelle non usate", async 
   const r1 = await prepara(nomi, { cartella, scarica: w.scarica });
   assert.equal(r1.scaricate, 2);
   assert.deepEqual(Object.keys(r1.registro).sort(), ["Gabbro.jpg", "TH.png"]);
-  assert.deepEqual(r1.registro["TH.png"], { file: "th-s2.png", sha1: "s2", w: 800, h: 400 });
+  assert.deepEqual(r1.registro["TH.png"], { file: "th-s2.png", sha1: "s2", w: 800, h: 400, url: ridotta("TH.png") });
+  assert.equal(r1.sulPi, 2);
+  assert.equal(r1.daFandom, 0);
+  assert.equal(r1.bloccato, null);
   assert.equal(r1.registro["Gabbro.jpg"].file, "gabbro-s4.webp");
   assert.match(r1.avvisi.join(), /1 immagini usate nelle pagine non ci sono sulla wiki/);
 
@@ -66,4 +72,40 @@ test("applica: dai nomi della wiki ai file, via quelle che mancano, immagine pri
   assert.deepEqual(servita.pagine.gabbro.immagine, { f: "gabbro-s4.webp", w: 800, h: 400 });
   assert.equal(servita.pagine.interloper.immagine, null);
   assert.equal(servita.home[0].voci[0].f, "timberhearth-1-s1.png");
+});
+
+test("Cloudflare blocca il Pi: ci si ferma alla prima, le altre si caricano da Fandom", async () => {
+  const w = new FintaWiki();
+  w.bloccoDopo = 1;
+  const cartella = cartellaProva();
+  const nomi = ["Gabbro.jpg", "TH.png", "Timberhearth 1.png", "Village.png"];
+  const r = await prepara(nomi, { cartella, scarica: w.scarica });
+  const alCDN = w.richieste.filter((u) => u.includes("static.wikia"));
+  assert.equal(alCDN.length, 2, "una scaricata, una bloccata, poi niente più richieste");
+  assert.equal(r.scaricate, 1);
+  assert.match(r.bloccato, /verifica da browser di Cloudflare/);
+  assert.deepEqual([r.sulPi, r.daFandom], [1, 3]);
+  assert.deepEqual(r.registro["Village.png"], { sha1: "s3", w: 800, h: 400, url: ridotta("Village.png") });
+  assert.equal(r.avvisi.length, 1);
+  assert.match(r.avvisi[0], /le carica il browser da Fandom/);
+
+  // Nella copia: dal Pi quella scaricata, da Fandom le altre
+  const copia = costruisci(await scaricaTutto({ scarica: new FintaWiki().scarica }));
+  const servita = applica(structuredClone(copia), r.registro);
+  assert.deepEqual(servita.pagine["timber-hearth"].schede[0].immagini, [{ u: ridotta("TH.png"), w: 800, h: 400 }]);
+  assert.deepEqual(servita.pagine["timber-hearth"].immagine, { u: ridotta("TH.png"), w: 800, h: 400 });
+  assert.equal(servita.pagine.gabbro.immagine.f, "gabbro-s4.webp");
+  assert.equal(servita.home[0].voci[0].u, ridotta("Timberhearth_1.png"));
+
+  // Sbloccato: al giro dopo arrivano le altre, la prima non si riscarica
+  w.bloccoDopo = null;
+  const r2 = await prepara(nomi, { cartella, scarica: w.scarica });
+  assert.equal(r2.scaricate, 3);
+  assert.deepEqual([r2.sulPi, r2.daFandom, r2.bloccato], [4, 0, null]);
+});
+
+test("applica: indirizzi non di Fandom non passano", () => {
+  const copia = { pagine: { x: { blocchi: [{ t: "img", f: "A.png" }, { t: "p", s: [{ f: "B.png" }, "testo"] }], schede: [] } }, home: [] };
+  const servita = applica(copia, { "A.png": { sha1: "1", url: "https://example.org/a.png" }, "B.png": { sha1: "2", url: "javascript:alert(1)" } });
+  assert.deepEqual(servita.pagine.x.blocchi, [{ t: "p", s: ["testo"] }]);
 });

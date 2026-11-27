@@ -1,7 +1,13 @@
 // Immagini della wiki sul Pi: si scaricano ridotte (al massimo 800 px di larghezza; Fandom le
 // manda in WebP: circa 65 MB in tutto) nella cartella del volume, con un registro
-// (immagini.json) che tiene per ogni immagine della wiki il file e lo sha1 dell'originale: se lo
-// sha1 non cambia non si riscarica. I blocchi della copia passano dai nomi della wiki ai file.
+// (immagini.json) che tiene per ogni immagine della wiki il file, lo sha1 dell'originale (se non
+// cambia non si riscarica) e l'indirizzo della copia ridotta su Fandom.
+//
+// Se Fandom (Cloudflare) blocca il Pi, ci si ferma alla prima risposta 403 o 429, senza insistere
+// sulle altre: quelle che mancano restano nel registro senza file, solo con l'indirizzo, e il
+// browser le carica da Fandom finché il Pi non riesce a scaricarle (riprova l'aggiornatore).
+// I blocchi della copia passano dai nomi della wiki ai file sul Pi ({ f }) o agli indirizzi
+// di Fandom ({ u }).
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -13,6 +19,9 @@ const REGISTRO = "immagini.json";
 const MASSIMO = 10 * 1024 * 1024;
 const ACCETTA = "image/webp,image/png,image/jpeg,image/gif;q=0.9,image/svg+xml;q=0.5";
 const RE_FILE = /^[a-z0-9-]{1,100}\.(webp|png|jpg|gif|svg)$/;
+// Le sole immagini esterne che il browser può caricare (anche nella Content-Security-Policy)
+const ORIGINE_FANDOM = "https://static.wikia.nocookie.net";
+const RE_URL_FANDOM = /^https:\/\/static\.wikia\.nocookie\.net\/[^\s"'<>\\]{1,500}$/;
 
 // Tipo dal contenuto, non da quello che dice il server
 function tipoDa(dati) {
@@ -46,7 +55,17 @@ function scriviAtomico(file, dati) {
   fs.renameSync(tmp, file);
 }
 
-// Scarica quelle che mancano o sono cambiate. Torna { registro, avvisi, scaricate }.
+const haFile = (voce, cartella) => Boolean(voce?.file && RE_FILE.test(voce.file) && fs.existsSync(path.join(cartella, voce.file)));
+
+// Quante immagini del registro sono sul Pi e quante si caricano da Fandom
+function conta(registro) {
+  const voci = Object.values(registro || {});
+  const sulPi = voci.filter((v) => v.file).length;
+  return { sulPi, daFandom: voci.filter((v) => !v.file && v.url).length };
+}
+
+// Scarica quelle che mancano o sono cambiate. Torna { registro, avvisi, scaricate, bloccato }:
+// bloccato è il motivo, se Fandom ha smesso di dare immagini al Pi.
 // parziale(registro): chiamata ogni 25 immagini, per mostrarle mentre arrivano le altre
 async function prepara(nomi, { cartella, scarica = scaricaRete, wiki, avanzamento = () => {}, parziale = null } = {}) {
   fs.mkdirSync(cartella, { recursive: true });
@@ -56,18 +75,27 @@ async function prepara(nomi, { cartella, scarica = scaricaRete, wiki, avanzament
   const avvisi = [];
   let scaricate = 0;
   let errori = 0;
+  let bloccato = null;
   const mancanti = nomi.filter((n) => !info[n]);
   for (const [i, nome] of nomi.entries()) {
     const ii = info[nome];
     const prima = vecchio[nome];
-    const esiste = prima && RE_FILE.test(prima.file) && fs.existsSync(path.join(cartella, prima.file));
+    const esiste = haFile(prima, cartella);
     if (!ii) {
       // Sparita dalla wiki (o la wiki non ha risposto per lei): si tiene quella che c'è
-      if (esiste) registro[nome] = prima;
+      if (esiste || prima?.url) registro[nome] = esiste ? prima : { ...prima, file: undefined };
       continue;
     }
-    if (esiste && prima.sha1 === ii.sha1) {
-      registro[nome] = prima;
+    const voce = { sha1: ii.sha1 };
+    if (ii.larghezza > 0 && ii.altezza > 0) Object.assign(voce, { w: ii.larghezza, h: ii.altezza });
+    if (RE_URL_FANDOM.test(ii.url)) voce.url = ii.url;
+    if (esiste && (prima.sha1 === ii.sha1 || bloccato)) {
+      // Uguale a prima; o cambiata, ma Fandom ora non dà immagini: intanto resta quella di prima
+      registro[nome] = { ...voce, file: prima.file, ...(prima.w ? { w: prima.w, h: prima.h } : {}) };
+      continue;
+    }
+    if (bloccato) {
+      registro[nome] = voce;
       continue;
     }
     try {
@@ -76,14 +104,18 @@ async function prepara(nomi, { cartella, scarica = scaricaRete, wiki, avanzament
       if (!tipo) throw new Error("formato sconosciuto");
       const file = nomeFile(nome, ii.sha1, tipo);
       scriviAtomico(path.join(cartella, file), dati);
-      const voce = { file, sha1: ii.sha1 };
-      if (ii.larghezza > 0 && ii.altezza > 0) Object.assign(voce, { w: ii.larghezza, h: ii.altezza });
-      registro[nome] = voce;
+      registro[nome] = { ...voce, file };
       scaricate++;
     } catch (e) {
-      errori++;
-      if (esiste) registro[nome] = prima;
-      if (errori <= 5) avvisi.push(`immagine ${nome} non scaricata: ${e.message}`);
+      registro[nome] = esiste ? { ...voce, file: prima.file } : voce;
+      if (e.sfida || e.stato === 403 || e.stato === 429) {
+        // Bloccati: niente altre richieste di immagini fino al prossimo tentativo
+        bloccato = e.message;
+        avvisi.push(`Fandom non dà più immagini al Pi (${e.message}): quelle che mancano le carica il browser da Fandom, il Pi riprova più tardi`);
+      } else {
+        errori++;
+        if (errori <= 5) avvisi.push(`immagine ${nome} non scaricata: ${e.message}`);
+      }
     }
     if ((i + 1) % 25 === 0) {
       if ((i + 1) % 100 === 0) avanzamento(`immagini: ${i + 1} su ${nomi.length}`);
@@ -96,7 +128,7 @@ async function prepara(nomi, { cartella, scarica = scaricaRete, wiki, avanzament
   if (errori > 5) avvisi.push(`e altre ${errori - 5} immagini non scaricate`);
   if (mancanti.length) avvisi.push(`${mancanti.length} immagini usate nelle pagine non ci sono sulla wiki`);
   scriviAtomico(path.join(cartella, REGISTRO), JSON.stringify(registro));
-  return { registro, avvisi, scaricate };
+  return { registro, avvisi, scaricate, bloccato, ...conta(registro) };
 }
 
 function primaImmagine(blocchi) {
@@ -111,20 +143,29 @@ function primaImmagine(blocchi) {
   return null;
 }
 
-// Nella copia, dai nomi della wiki ai file sul Pi: le immagini senza file spariscono.
+// Nella copia, dai nomi della wiki ai file sul Pi ({ f }) o, se il Pi non li ha, agli indirizzi
+// di Fandom ({ u }); le immagini senza né l'uno né l'altro spariscono.
 // Cambia la copia che riceve: il server la applica a una copia di quella salvata, che tiene i
 // nomi della wiki (servono al prossimo aggiornamento, anche per le pagine trattenute).
 function applica(copia, registro) {
-  const file = (nome) => registro[nome]?.file || null;
+  const sorgente = (nome) => {
+    const r = registro[nome];
+    if (r?.file) return { f: r.file };
+    if (r?.url && RE_URL_FANDOM.test(r.url)) return { u: r.url };
+    return null;
+  };
   const pezzi = (s) =>
     (s || []).flatMap((x) => {
       if (!x || !x.f) return [x];
-      const f = file(x.f);
-      return f ? [{ ...x, f }] : x.alt ? [x.alt] : [];
+      const { f, ...resto } = x;
+      const src = sorgente(f);
+      return src ? [{ ...resto, ...src }] : x.alt ? [x.alt] : [];
     });
   const grande = (x) => {
-    const r = registro[x.f];
-    return r ? { ...x, f: r.file, ...(r.w ? { w: r.w, h: r.h } : {}) } : null;
+    const { f, ...resto } = x;
+    const src = sorgente(f);
+    const r = registro[f];
+    return src ? { ...resto, ...src, ...(r.w ? { w: r.w, h: r.h } : {}) } : null;
   };
   const blocchi = (elenco) =>
     (elenco || []).flatMap((b) => {
@@ -174,7 +215,7 @@ function applica(copia, registro) {
     }));
     // Immagine principale: la prima della scheda, se no la prima della pagina (non le icone)
     const principale = p.schede.flatMap((s) => s.immagini)[0] || primaImmagine(p.blocchi);
-    p.immagine = principale ? { f: principale.f, ...(principale.w ? { w: principale.w, h: principale.h } : {}) } : null;
+    p.immagine = principale ? { ...(principale.f ? { f: principale.f } : { u: principale.u }), ...(principale.w ? { w: principale.w, h: principale.h } : {}) } : null;
   }
   for (const sez of copia.home || []) {
     sez.voci = sez.voci.map((v) => {
@@ -204,4 +245,4 @@ function togliNonUsate(cartella, registro) {
   return tolte;
 }
 
-module.exports = { prepara, applica, togliNonUsate, tipoDa, nomeFile, leggiRegistro, RE_FILE };
+module.exports = { prepara, applica, togliNonUsate, tipoDa, nomeFile, leggiRegistro, conta, RE_FILE, RE_URL_FANDOM, ORIGINE_FANDOM };
