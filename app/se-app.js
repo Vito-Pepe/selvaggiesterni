@@ -1,7 +1,7 @@
-// Avvio: testata, menu, avviso sugli spoiler, dati dal Pi e navigazione.
+// Avvio: testata, menu, dati dal Pi e navigazione.
 (function () {
   "use strict";
-  const { h, s, carica, mostra, vai, chiama, finestra, leggiLocale, scriviLocale } = window.SE;
+  const { h, s, carica, mostra, vai, chiama, leggiLocale, scriviLocale } = window.SE;
 
   const VOCI = [
     ["inizio", "#/", "Inizio"],
@@ -63,23 +63,6 @@
     }
   }
 
-  // La prima volta, su ogni dispositivo: la wiki svela tutto il gioco
-  function spoiler() {
-    if (leggiLocale("se-spoiler-ok", false)) return;
-    const f = finestra({
-      titolo: "Attenzione: spoiler",
-      chiudibile: false,
-      classe: "finestra-spoiler",
-      contenuto: h(
-        "div",
-        null,
-        h("p", null, "Questa wiki racconta tutto di Outer Wilds e di Echoes of the Eye: luoghi, segreti, storia dei Nomai e finali."),
-        h("p", null, "Il gioco si gode scoprendo le cose da soli: se non l'hai ancora finito, leggi solo quello che ti serve."),
-        h("div", { class: "pulsanti" }, h("button", { class: "pulsante", type: "button", onclick: () => (scriviLocale("se-spoiler-ok", true), f.chiudi()) }, "Ho capito, entra")),
-      ),
-    });
-  }
-
   async function avvia() {
     const main = document.querySelector("main");
     testata();
@@ -92,10 +75,9 @@
     }
     mostra();
     pallino();
-    spoiler();
   }
 
   window.addEventListener("hashchange", mostra);
-  window.App = { pallino, spoiler };
+  window.App = { pallino };
   avvia();
 })();

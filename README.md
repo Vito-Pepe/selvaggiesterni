@@ -3,6 +3,7 @@
 La **wiki di Outer Wilds** sul Raspberry Pi: una copia privata della [Outer Wilds Wiki](https://outerwilds.fandom.com/wiki/Outer_Wilds_Wiki) di Fandom, da consultare quando si vuole senza passare dal sito (anche quando il sito non risponde). Il Pi la aggiorna da solo una volta al giorno.
 
 - Pagina: `https://selvaggiesterni.<tailnet>.ts.net` (indirizzo della repo `ingressi-https`), oppure in casa `http://192.168.1.22:8096`.
+- Il dispositivo `selvaggiesterni` si può **condividere** da Tailscale (Machines → Share) con chi è fuori dalla tailnet, come Infernotuffatori: chi lo riceve vede solo la wiki.
 - Si apre anche dal riquadro **Selvaggi Esterni** della homepage.
 - Su iPhone: Safari → Condividi → "Aggiungi alla schermata Home".
 
@@ -24,7 +25,7 @@ La **wiki di Outer Wilds** sul Raspberry Pi: una copia privata della [Outer Wild
 
 ### Spoiler
 
-La wiki racconta tutto di Outer Wilds e di Echoes of the Eye, finali compresi. Al primo accesso da ogni dispositivo l'app lo dice; le pagine che sulla wiki hanno l'avviso di spoiler hanno l'etichetta **Spoiler**.
+È pensata per chi ha già finito il gioco: racconta tutto di Outer Wilds e di Echoes of the Eye, finali compresi, senza nascondere niente. Il riquadro "This article contains spoilers!" della wiki qui non c'è.
 
 ### Lingua
 
@@ -46,7 +47,7 @@ Al primo avvio la copia non c'è: il server la scarica subito. I testi sono pron
 ## Licenze
 
 - I **testi** sono dei volontari della Outer Wilds Wiki, con licenza [CC BY-SA 3.0](https://www.fandom.com/licensing): ogni pagina dell'app cita la fonte e porta alla pagina originale e alla sua cronologia (autori). La copia sta solo nel volume del Pi, non in questa repo.
-- Le **immagini** vengono dalla wiki e sono in gran parte schermate del gioco (© Mobius Digital, Annapurna Interactive). Per questo l'app resta **privata**: solo in casa e nella tailnet, mai su Internet.
+- Le **immagini** vengono dalla wiki e sono in gran parte schermate del gioco (© Mobius Digital, Annapurna Interactive). Per questo l'app resta **privata**: in casa, nella tailnet e per chi riceve il dispositivo condiviso, mai su Internet.
 - Il codice di questa repo è nostro.
 
 ## Sul Pi
@@ -57,7 +58,7 @@ Al primo avvio la copia non c'è: il server la scarica subito. I testi sono pron
 | Progetto compose | `selvaggiesterni`, container `selvaggiesterni-selvaggiesterni-1` |
 | Porta | `8096` (LAN e Pi), interna `3000` |
 | Volume | `selvaggiesterni_dati`: copia della wiki, immagini, novità, stato |
-| HTTPS | dispositivo `selvaggiesterni` della repo `ingressi-https` |
+| HTTPS | dispositivo `selvaggiesterni` della repo `ingressi-https`, **condivisibile**: arriva all'app dalla rete Docker `ingresso-selvaggiesterni` (alias `selvaggiesterni-app`), non dalla rete del Pi |
 | Aggiornamento del codice | `update.sh` dal cron ogni 5 minuti |
 | Controllo di salute | `GET /api/salute` ogni 60 s (il guardiano la riavvia se si blocca) |
 
@@ -65,7 +66,7 @@ Esce su Internet solo per leggere la wiki (`outerwilds.fandom.com`) e le sue imm
 
 ### Prima installazione
 
-Vedi i comandi nella PR che ha aggiunto l'app; in breve:
+Prima va avviato il servizio `selvaggiesterni` della repo `ingressi-https`: crea la rete `ingresso-selvaggiesterni`, che l'app usa (`external: true`). Altrimenti `docker compose up` si ferma con `network ingresso-selvaggiesterni declared as external, but could not be found`. Poi:
 
 ```bash
 cd ~ && git clone https://github.com/Vito-Pepe/selvaggiesterni.git

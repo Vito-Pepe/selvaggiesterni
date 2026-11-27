@@ -523,7 +523,8 @@ function blocchiDi(nodo, ctx, livello = 0) {
     const c = H.classi(f);
     const tag = f.tag;
 
-    // Il riquadro "This article contains spoilers!": la pagina diventa "con spoiler"
+    // Il riquadro "This article contains spoilers!" sparisce (la copia è per chi ha già finito
+    // il gioco); resta solo il segno ctx.spoiler
     if ((tag === "div" || tag === "table") && SPOILER.test(H.testoDi(f)) && H.testoDi(f).length < 600) {
       chiudi();
       ctx.spoiler = true;

@@ -23,12 +23,12 @@ test("pagine copiate e scartate (vuote, vandalizzate, da cancellare)", async () 
   assert.equal(c.fonte.licenza, "CC BY-SA 3.0");
 });
 
-test("pagina: link risolti con i rimandi, categorie, spoiler, altri nomi", async () => {
+test("pagina: link risolti con i rimandi, categorie, niente riquadro spoiler, altri nomi", async () => {
   const c = await copiaDa(new FintaWiki());
   const th = c.pagine["timber-hearth"];
   assert.equal(th.titolo, "Timber Hearth");
   assert.equal(th.url, "https://outerwilds.fandom.com/wiki/Timber_Hearth");
-  assert.equal(th.spoiler, true);
+  assert.ok(!JSON.stringify(th.blocchi).includes("spoilers"), "il riquadro della wiki sugli spoiler sparisce");
   assert.deepEqual(th.categorie.sort(), ["locations", "planets"]);
   assert.deepEqual(th.altri, ["Hearth"]);
   assert.equal(th.commento, "più dettagli");
@@ -36,7 +36,6 @@ test("pagina: link risolti con i rimandi, categorie, spoiler, altri nomi", async
   assert.ok(primo.some((x) => x.p === "interloper" && x.t === "The Interloper"), "il rimando porta alla pagina vera");
   assert.ok(primo.some((x) => typeof x === "string" && x.includes("the Hearthians")), "le pagine che non ci sono restano testo");
   assert.deepEqual(c.pagine.gabbro.blocchi[0].s[2], { t: "Timber Hearth", p: "timber-hearth", a: "Village" });
-  assert.equal(c.pagine.gabbro.spoiler, undefined);
 });
 
 test("categorie con sopra e sotto, home dalla pagina principale", async () => {

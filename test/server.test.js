@@ -24,7 +24,6 @@ test("aggiornatore: prima copia, novità, wiki che non risponde", async () => {
   assert.deepEqual(a.novita().map((n) => [n.prima, n.pagine]), [[true, 4]]);
   const indice = JSON.parse(a.indice.testo);
   assert.deepEqual(indice.pagine.map((p) => p.id), ["gabbro", "interloper", "timber-hearth", "universe"]);
-  assert.equal(indice.pagine[2].spoiler, 1);
   assert.ok(!("blocchi" in indice.pagine[0]));
   const p = JSON.parse(a.pagina("timber-hearth").testo);
   assert.equal(p.titolo, "Timber Hearth");

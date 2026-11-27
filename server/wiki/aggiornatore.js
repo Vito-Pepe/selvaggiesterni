@@ -86,7 +86,6 @@ class Aggiornatore {
       .sort((a, b) => a.titolo.localeCompare(b.titolo, "en"))
       .map((p) => {
         const v = { id: p.id, titolo: p.titolo, categorie: p.categorie };
-        if (p.spoiler) v.spoiler = 1;
         if (p.immagine) v.immagine = p.immagine;
         if (p.riassunto) v.riassunto = p.riassunto;
         if (p.toccata) v.toccata = p.toccata;

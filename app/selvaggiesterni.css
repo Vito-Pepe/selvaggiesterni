@@ -95,8 +95,6 @@ input[type="search"]:focus { border-color: var(--arancio); }
 .chip:hover { border-color: var(--arancio); }
 
 .etichetta { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: var(--pannello2); color: var(--acqua); border: 1px solid var(--bordo-forte); }
-.etichetta.spoiler { color: var(--inchiostro); background: var(--viola); border-color: var(--viola); }
-.etichetta.mini { margin-left: 6px; padding: 0 7px; font-size: 0.68rem; vertical-align: middle; }
 
 .caricamento, .vuoto { padding: 40px 0; text-align: center; color: var(--tenue); }
 .titolo-vista { font-size: 1.5rem; margin: 4px 0 14px; }
@@ -276,8 +274,6 @@ details summary { cursor: pointer; }
 .grande { margin: 0; }
 .grande img { display: block; max-width: 100%; max-height: calc(100vh - 160px); margin: 0 auto; border-radius: 6px; }
 .grande figcaption { color: var(--tenue); font-size: 0.9rem; margin-top: 8px; text-align: center; }
-.finestra-spoiler { border-color: var(--viola); }
-.finestra-spoiler .capo h1 { color: var(--viola); }
 
 .messaggi { position: fixed; left: 50%; bottom: calc(16px + var(--barra-sotto)); transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; width: min(92vw, 420px); }
 .messaggio { background: var(--pannello2); border: 1px solid var(--bordo-forte); border-radius: var(--raggio); padding: 10px 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }

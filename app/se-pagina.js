@@ -217,7 +217,7 @@
 
   function testa(p) {
     const cat = p.categorie.map(categoria).filter(Boolean);
-    const etichette = [p.spoiler ? h("span", { class: "etichetta spoiler" }, "Spoiler") : null, ...cat.filter((c) => ETICHETTE[c.id]).map((c) => h("span", { class: "etichetta" }, ETICHETTE[c.id]))];
+    const etichette = [...cat.filter((c) => ETICHETTE[c.id]).map((c) => h("span", { class: "etichetta" }, ETICHETTE[c.id]))];
     return h(
       "header",
       { class: "testa-pagina" },

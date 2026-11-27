@@ -42,7 +42,7 @@
     });
   }
 
-  // --- Memoria del browser: solo comodità (avviso spoiler già visto, novità già lette) ---
+  // --- Memoria del browser: solo comodità (novità già lette) ---
 
   function leggiLocale(chiave, predefinito) {
     try {
@@ -115,7 +115,7 @@
     setTimeout(() => m.remove(), tipo === "errore" ? 6000 : 3200);
   }
 
-  // --- Finestra (immagine ingrandita, avviso spoiler) ---
+  // --- Finestra (immagine ingrandita) ---
 
   function finestra({ titolo, contenuto, classe = "", chiudibile = true, alChiudere }) {
     const prima = document.activeElement;

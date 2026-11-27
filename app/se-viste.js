@@ -1,7 +1,7 @@
 // Viste dell'app: inizio, categorie, indice A-Z, ricerca, novità e informazioni.
 (function () {
   "use strict";
-  const { h, stato, chiama, carica, voce, categoria, vista, vai, avviso, data, numero, link, leggiLocale, scriviLocale } = window.SE;
+  const { h, stato, chiama, carica, voce, categoria, vista, vai, avviso, data, numero, link, scriviLocale } = window.SE;
 
   // Scheda di una pagina negli elenchi: immagine, titolo, riassunto
   function carta(p, { riassunto = true } = {}) {
@@ -9,7 +9,7 @@
       "a",
       { class: "carta", href: link.pagina(p.id) },
       p.immagine ? h("img", { src: link.immagine(p.immagine.f), alt: "", loading: "lazy", width: p.immagine.w || null, height: p.immagine.h || null }) : h("span", { class: "senza-immagine", "aria-hidden": "true" }, p.titolo.slice(0, 1)),
-      h("span", { class: "testo-carta" }, h("b", null, p.titolo, p.spoiler ? h("span", { class: "etichetta spoiler mini" }, "Spoiler") : null), riassunto && p.riassunto ? h("span", { class: "riassunto" }, p.riassunto) : null),
+      h("span", { class: "testo-carta" }, h("b", null, p.titolo), riassunto && p.riassunto ? h("span", { class: "riassunto" }, p.riassunto) : null),
     );
   }
 
@@ -167,7 +167,7 @@
               "a",
               { class: "risultato", href: link.pagina(x.id) },
               p?.immagine ? h("img", { src: link.immagine(p.immagine.f), alt: "", loading: "lazy" }) : h("span", { class: "senza-immagine" }, x.titolo.slice(0, 1)),
-              h("span", null, h("b", null, x.titolo, p?.spoiler ? h("span", { class: "etichetta spoiler mini" }, "Spoiler") : null), h("span", { class: "estratto" }, x.estratto)),
+              h("span", null, h("b", null, x.titolo), h("span", { class: "estratto" }, x.estratto)),
             );
           }),
         );
@@ -288,15 +288,13 @@
         "div",
         { class: "testo-info" },
         h("p", null, "Selvaggi Esterni è una copia privata, sul Raspberry Pi, della ", h("a", { href: f.principale || "https://outerwilds.fandom.com", class: "esterno", target: "_blank", rel: "noopener noreferrer" }, f.sito || "Outer Wilds Wiki"), ": si consulta senza passare dal sito, anche quando il sito non risponde. Una volta al giorno il Pi scarica le pagine cambiate e le immagini nuove."),
-        h("p", null, "Attenzione: la wiki racconta tutto di Outer Wilds e di Echoes of the Eye, finali compresi. Le pagine che sulla wiki hanno l'avviso di spoiler qui hanno l'etichetta ", h("span", { class: "etichetta spoiler mini" }, "Spoiler"), "."),
-        h("p", null, `I testi sono dei volontari che scrivono la wiki, con licenza ${f.licenza || "CC BY-SA 3.0"}`, f.licenzaUrl ? [" (", h("a", { href: f.licenzaUrl, class: "esterno", target: "_blank", rel: "noopener noreferrer" }, "condizioni"), ")"] : null, ": in fondo a ogni pagina ci sono il link alla pagina originale e alla sua cronologia, con gli autori. Le immagini vengono dalla wiki e sono in gran parte schermate del gioco, di Mobius Digital e Annapurna Interactive: per questo l'app resta privata, solo per chi è nella tailnet o in casa."),
+        h("p", null, "È pensata per chi ha già finito il gioco: racconta tutto di Outer Wilds e di Echoes of the Eye, finali compresi, senza nascondere niente."),
+        h("p", null, `I testi sono dei volontari che scrivono la wiki, con licenza ${f.licenza || "CC BY-SA 3.0"}`, f.licenzaUrl ? [" (", h("a", { href: f.licenzaUrl, class: "esterno", target: "_blank", rel: "noopener noreferrer" }, "condizioni"), ")"] : null, ": in fondo a ogni pagina ci sono il link alla pagina originale e alla sua cronologia, con gli autori. Le immagini vengono dalla wiki e sono in gran parte schermate del gioco, di Mobius Digital e Annapurna Interactive: per questo l'app resta privata: in casa, nella tailnet e per chi riceve da Tailscale il suo indirizzo condiviso, mai su Internet."),
         h("p", null, "Le pagine vuote, quelle che la wiki sta per cancellare e quelle vandalizzate non si copiano; se una pagina viene svuotata all'improvviso, per una settimana resta la versione di prima."),
       ),
       h("h2", null, "Aggiornamento"),
       zonaStato,
       h("div", { class: "pulsanti" }, pulsante),
-      h("h2", null, "Spoiler"),
-      h("p", null, h("button", { class: "pulsante secondario", type: "button", onclick: () => (scriviLocale("se-spoiler-ok", null), window.App?.spoiler()) }, "Rivedi l'avviso sugli spoiler")),
     );
     leggiStato();
     return () => clearTimeout(timer);

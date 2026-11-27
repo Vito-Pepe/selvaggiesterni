@@ -132,7 +132,9 @@ function costruisci(materiale, { precedente = null, adesso = new Date() } = {}) 
     const id = idPagine.get(g.titolo);
     const ctx = { ...ctxBase, id, titolo: g.titolo };
     ctx.link = ctxBase.link.bind(ctx);
-    const { blocchi, schede, spoiler } = B.converti(g.html || "", ctx);
+    // Il riquadro "This article contains spoilers" della wiki sparisce: la copia è per chi ha
+    // già finito il gioco
+    const { blocchi, schede } = B.converti(g.html || "", ctx);
     const p = {
       id,
       titolo: g.titolo,
@@ -140,7 +142,6 @@ function costruisci(materiale, { precedente = null, adesso = new Date() } = {}) 
       rev: g.rev ?? null,
       toccata: g.toccata || null,
       categorie: [...new Set(g.categorie.map(catId).filter(Boolean))],
-      spoiler: spoiler || undefined,
       schede,
       blocchi,
       riassunto: B.riassunto(blocchi),
