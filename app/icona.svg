@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="sole" cx="0.4" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#ffd08a"/>
+      <stop offset="0.55" stop-color="#ff9d3b"/>
+      <stop offset="1" stop-color="#e0631c"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1020"/>
+  <circle cx="13" cy="12" r="1.3" fill="#fff" opacity="0.9"/>
+  <circle cx="51" cy="50" r="1" fill="#fff" opacity="0.8"/>
+  <circle cx="48" cy="9" r="0.8" fill="#fff" opacity="0.7"/>
+  <circle cx="9" cy="47" r="0.8" fill="#fff" opacity="0.6"/>
+  <ellipse cx="32" cy="32" rx="25" ry="11.5" fill="none" stroke="#a98bff" stroke-width="2.4" transform="rotate(-24 32 32)"/>
+  <circle cx="32" cy="32" r="10.5" fill="url(#sole)"/>
+  <circle cx="52.4" cy="23.2" r="4.2" fill="#5fd4c4"/>
+</svg>

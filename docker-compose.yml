@@ -1,0 +1,43 @@
+services:
+  selvaggiesterni:
+    build: .
+    ports:
+      # Aperta alla LAN (http://192.168.1.22:8096). 8080-8095 sono già usate da altre app
+      # (INFRASTRUTTURA-PI.md nella repo sillabe).
+      - "8096:3000"
+    networks:
+      default: {}
+      # Da qui arriva https://selvaggiesterni.<tailnet>.ts.net: l'ingresso della repo
+      # ingressi-https sta in questa rete (non su quella del Pi, perché il dispositivo si
+      # condivide con chi è fuori dalla tailnet) e manda le richieste a
+      # http://selvaggiesterni-app:3000
+      ingresso:
+        aliases:
+          - selvaggiesterni-app
+    volumes:
+      # Copia della wiki, immagini scaricate, novità e stato degli aggiornamenti
+      - dati:/data
+    # Il codice non si scrive: solo il volume dei dati e /tmp
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 50
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/salute"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  dati:
+
+networks:
+  # La crea la repo ingressi-https: va avviata prima lei (servizio selvaggiesterni)
+  ingresso:
+    name: ingresso-selvaggiesterni
+    external: true
